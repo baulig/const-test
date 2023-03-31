@@ -1,0 +1,134 @@
+#+title: Investigating a problem
+
+When adding ~pandoc~ as a dependency to any project that is using ~stack~ with ~lts-20.16~ on OpenBSD, I stumbled upon a weird linker error in the ~hslua-core~ module.
+
+I still haven't figured out what exactly is causing this, but found a work-around - so for the moment I am only documenting this here, to look at again at a later time.
+
+When you compile this project with =stack build= and then search for all =*.a= files, you will get:
+
+#+begin_src sh
+$ find . -name *.a
+./.stack-work/install/x86_64-openbsd/bbf5b6b09f29c98f8f7e14b2d7467419992b7a0913b048062782a1729826c03f/9.2.7/lib/x86_64-openbsd-ghc-9.2.7/const-test-0.0.1-96Q1n1ZmnKn6kbGGkJOvjk/libHSconst-test-0.0.1-96Q1n1ZmnKn6kbGGkJOvjk.a
+./.stack-work/dist/x86_64-openbsd/Cabal-3.6.3.0/build/libHSconst-test-0.0.1-96Q1n1ZmnKn6kbGGkJOvjk.a
+#+end_src
+
+Let's use =find -ls= now - and as you can see, these two are not identical:
+
+#+begin_src sh
+$ find . -name *.a -ls
+10990164   20 -rw-r--r--    1 martin   wheel        9634 Mar 31 01:45 ./.stack-work/install/x86_64-openbsd/bbf5b6b09f29c98f8f7e14b2d7467419992b7a0913b048062782a1729826c03f/9.2.7/lib/x86_64-openbsd-ghc-9.2.7/const-test-0.0.1-96Q1n1ZmnKn6kbGGkJOvjk/libHSconst-test-0.0.1-96Q1n1ZmnKn6kbGGkJOvjk.a
+10990135   20 -rw-r--r--    1 martin   wheel       10012 Mar 31 01:45 ./.stack-work/dist/x86_64-openbsd/Cabal-3.6.3.0/build/libHSconst-test-0.0.1-96Q1n1ZmnKn6kbGGkJOvjk.a
+#+end_src
+
+It looks like =stack= first compiles this into the =.stack-work/dist= directory, then creates the =.stack-work/install= version.
+
+And as it turns out, the first version in actually okay.  Let's have a look at it's symbols:
+
+
+#+begin_src sh
+$ nm .stack-work/dist/x86_64-openbsd/Cabal-3.6.3.0/build/libHSconst-test-0.0.1-96Q1n1ZmnKn6kbGGkJOvjk.a
+
+MartinTest.o:
+00000000 W __llvm_retpoline_r11
+00000000 W __retguard_1756
+00000000 D constzmtestzm0zi0zi1zm96Q1n1ZZmnKn6kbGGkJOvjk_ConstTestziMartinTest_martinTest_closure
+00000010 T constzmtestzm0zi0zi1zm96Q1n1ZZmnKn6kbGGkJOvjk_ConstTestziMartinTest_martinTest_info
+00000020 D constzmtestzm0zi0zi1zm96Q1n1ZZmnKn6kbGGkJOvjk_ConstTestziMartinTest_zdtrModule1_closure
+00000000 D constzmtestzm0zi0zi1zm96Q1n1ZZmnKn6kbGGkJOvjk_ConstTestziMartinTest_zdtrModule2_bytes
+00000030 D constzmtestzm0zi0zi1zm96Q1n1ZZmnKn6kbGGkJOvjk_ConstTestziMartinTest_zdtrModule3_closure
+00000015 D constzmtestzm0zi0zi1zm96Q1n1ZZmnKn6kbGGkJOvjk_ConstTestziMartinTest_zdtrModule4_bytes
+00000040 D constzmtestzm0zi0zi1zm96Q1n1ZZmnKn6kbGGkJOvjk_ConstTestziMartinTest_zdtrModule_closure
+00000000 F ghc_2.s
+00000000 F ghc_3.c
+00000000 F ghc_4.s
+         U ghczmprim_GHCziTypes_Izh_con_info
+         U ghczmprim_GHCziTypes_Module_con_info
+         U ghczmprim_GHCziTypes_TrNameS_con_info
+         U martin_test
+         U newCAF
+         U registerForeignExports
+         U resumeThread
+         U stg_bh_upd_frame_info
+00000000 b stg_exports_ConstTestziMartinTest
+         U stg_gc_noregs
+000001b0 t stginit_export_ConstTestziMartinTest
+         U suspendThread
+
+const-and-func.o:
+00000000 W __llvm_retpoline_r11
+00000000 W __retguard_3119
+00000000 F const-and-func.c
+00000000 R const_and_func__the_const
+00000000 T const_and_func__the_func
+00000000 F ghc_1.s
+
+just-a-const.o:
+00000000 F ghc_1.s
+00000000 F just-a-const.c
+00000000 R just_a_const
+
+test.o:
+00000000 W __llvm_retpoline_r11
+00000000 W __retguard_1929
+         U const_and_func__the_const
+00000000 F ghc_1.s
+         U just_a_const
+00000000 T martin_test
+00000000 F test.c
+#+end_src
+
+Looking at the "install" version yields an interesting difference in =just-a-const.o=:
+
+#+begin_src sh
+$ nm .stack-work/install/x86_64-openbsd/bbf5b6b09f29c98f8f7e14b2d7467419992b7a0913b048062782a1729826c03f/9.2.7/lib/x86_64-openbsd-ghc-9.2.7/const-test-0.0.1-96Q1n1ZmnKn6kbGGkJOvjk/libHSconst-test-0.0.1-96Q1n1ZmnKn6kbGGkJOvjk.a
+
+MartinTest.o:
+00000000 W __llvm_retpoline_r11
+00000000 W __retguard_1756
+00000000 D constzmtestzm0zi0zi1zm96Q1n1ZZmnKn6kbGGkJOvjk_ConstTestziMartinTest_martinTest_closure
+00000010 T constzmtestzm0zi0zi1zm96Q1n1ZZmnKn6kbGGkJOvjk_ConstTestziMartinTest_martinTest_info
+00000020 D constzmtestzm0zi0zi1zm96Q1n1ZZmnKn6kbGGkJOvjk_ConstTestziMartinTest_zdtrModule1_closure
+00000000 D constzmtestzm0zi0zi1zm96Q1n1ZZmnKn6kbGGkJOvjk_ConstTestziMartinTest_zdtrModule2_bytes
+00000030 D constzmtestzm0zi0zi1zm96Q1n1ZZmnKn6kbGGkJOvjk_ConstTestziMartinTest_zdtrModule3_closure
+00000015 D constzmtestzm0zi0zi1zm96Q1n1ZZmnKn6kbGGkJOvjk_ConstTestziMartinTest_zdtrModule4_bytes
+00000040 D constzmtestzm0zi0zi1zm96Q1n1ZZmnKn6kbGGkJOvjk_ConstTestziMartinTest_zdtrModule_closure
+         U ghczmprim_GHCziTypes_Izh_con_info
+         U ghczmprim_GHCziTypes_Module_con_info
+         U ghczmprim_GHCziTypes_TrNameS_con_info
+         U martin_test
+         U newCAF
+         U registerForeignExports
+         U resumeThread
+         U stg_bh_upd_frame_info
+         U stg_gc_noregs
+         U suspendThread
+
+const-and-func.o:
+00000000 W __llvm_retpoline_r11
+00000000 W __retguard_3119
+00000000 R const_and_func__the_const
+00000000 T const_and_func__the_func
+nm: just-a-const.o: no name list
+
+test.o:
+00000000 W __llvm_retpoline_r11
+00000000 W __retguard_1929
+         U const_and_func__the_const
+         U just_a_const
+00000000 T martin_test
+#+end_src
+
+See that warning from =nm=, telling you that =just-a-const.o= doesn't contain any symbols?
+
+In this particular setup, we still compile and run fine - but in ~hslua-core~, we fail to link with undefined symbols.  And I believe the same is going to happen if anybody tries to include our library in their project.
+
+Checking =objdump -s= reveals that the actual data is still there, just the symbols have been removed:
+
+#+begin_src sh
+just-a-const.o:     file format elf64-x86-64
+
+Contents of section .rodata:
+ 0000 03000000                             ....
+#+end_src
+
+For the moment, a work-around is to simply define a dummy function in each file that otherwise would only contain read-only data.
