@@ -32,9 +32,11 @@ executable const-test
                      , PatternSynonyms
   c-sources:           cbits/test.c
                      , cbits/const-and-func.c
+                     , cbits/just-a-const.c
   include-dirs:        cbits
   includes:            test.h
                      , cbits/const-and-func.h
+                     , cbits/just-a-const.c
 
   cc-options:          -v -v
   ghc-options:         -v
