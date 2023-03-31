@@ -18,10 +18,10 @@ common common-options
                        -Wpartial-fields
                        -fhide-source-paths
 
-executable const-test
+library
   import:              common-options
-  main-is:             Main.hs
-  hs-source-dirs:      src
+  exposed-modules:     ConstTest.MartinTest
+  hs-source-dirs:      lib
   default-extensions:  CApiFFI
                      , ForeignFunctionInterface
                      , LambdaCase
@@ -37,6 +37,16 @@ executable const-test
   includes:            test.h
                      , cbits/const-and-func.h
                      , cbits/just-a-const.c
+
+  cc-options:          -v -v
+  ghc-options:         -v
+
+executable my-const-test
+  import:              common-options
+  main-is:             Main.hs
+  hs-source-dirs:      src
+
+  build-depends:       const-test
 
   cc-options:          -v -v
   ghc-options:         -v
