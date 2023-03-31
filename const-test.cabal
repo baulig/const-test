@@ -31,8 +31,10 @@ executable const-test
                      , GeneralizedNewtypeDeriving
                      , PatternSynonyms
   c-sources:           cbits/test.c
+                     , cbits/const-and-func.c
   include-dirs:        cbits
   includes:            test.h
+                     , cbits/const-and-func.h
 
   cc-options:          -v -v
   ghc-options:         -v

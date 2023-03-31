@@ -1,7 +1,8 @@
 #include "test.h"
+#include "const-and-func.h"
 
 int
 martin_test (void)
 {
-    return 1;
+    return const_and_func__the_const;
 }
